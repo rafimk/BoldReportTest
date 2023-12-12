@@ -1,3 +1,4 @@
+using BoldReport.Api;
 using BoldReports.Writer;
 using Microsoft.AspNetCore.Mvc;
 
@@ -109,6 +110,99 @@ app.MapPost("/reports", async (string writerFormat) =>
     return fileStreamResult;
 })
 .WithName("GetReports")
+.WithOpenApi();
+
+app.MapPost("/transfer", async (string writerFormat) =>
+{
+    FileStream inputStream = new FileStream("TranferRequestWithLocation.rdl", FileMode.Open, FileAccess.Read);
+    MemoryStream reportStream = new MemoryStream();
+    inputStream.CopyTo(reportStream);
+    reportStream.Position = 0;
+    inputStream.Close();
+    ReportWriter writer = new ReportWriter();
+
+    string fileName = null;
+    WriterFormat format;
+    string type = null;
+
+    if (writerFormat == "PDF")
+    {
+        fileName = "TranferRequestWithLocation.pdf";
+        type = "pdf";
+        format = WriterFormat.PDF;
+    }
+    else if (writerFormat == "Word")
+    {
+        fileName = "TranferRequestWithLocation.docx";
+        type = "docx";
+        format = WriterFormat.Word;
+    }
+    else if (writerFormat == "CSV")
+    {
+        fileName = "TranferRequestWithLocation.csv";
+        type = "csv";
+        format = WriterFormat.CSV;
+    }
+    else
+    {
+        fileName = "TranferRequestWithLocation.xlsx";
+        type = "xlsx";
+        format = WriterFormat.Excel;
+    }
+
+    var result = new PrintTransferRequestWithItemLocationQueryViewModel
+    {
+        TRNumber = 123445,
+        TRDate = "30/11/2023",
+        RequestedBy = "storecode-RS",
+        SupplierApplicability = "SC-RS"
+    };
+
+    var transferRequest = new TransferRequest
+    {
+        SNo = 1,
+        PartNumber = "partNo",
+        MFR = "MFR",
+        Description = "Desc",
+        UnitofIssue = "2",
+        QTY1 = 12,
+        Location = "Location",
+        SerialNo = "1233",
+        LotNo = "4343",
+        QTY2 = 9
+    };
+    result.TransferRequestList.Add(transferRequest);
+
+    List<PrintTransferRequestWithItemLocationQueryViewModel> itemDetailsViewModel = new List<PrintTransferRequestWithItemLocationQueryViewModel>();
+    itemDetailsViewModel.Add(new PrintTransferRequestWithItemLocationQueryViewModel
+    {
+        TRNumber = result.TRNumber,
+        TRDate = result.TRDate,
+        RequestedBy = result.RequestedBy,
+        SupplierApplicability = result.SupplierApplicability
+    });
+
+
+    writer.DataSources.Clear();
+    writer.DataSources.Add(new BoldReports.Web.ReportDataSource { Name = "TransferRequestHeaderDataSet", Value = itemDetailsViewModel });
+    writer.DataSources.Add(new BoldReports.Web.ReportDataSource { Name = "TransferRequestDataSet", Value = result.TransferRequestList });
+
+    writer.LoadReport(reportStream);
+    MemoryStream memoryStream = new MemoryStream();
+    writer.Save(memoryStream, format);
+
+    // Download the generated export document to the client side.
+    memoryStream.Position = 0;
+    FileStreamResult fileStreamResult = new FileStreamResult(memoryStream, "application/" + type);
+    fileStreamResult.FileDownloadName = fileName;
+
+    memoryStream.Position = 0;
+    byte[] byteArray = memoryStream.ToArray();
+    File.WriteAllBytes(fileName, byteArray);
+
+    return fileName;
+})
+.WithName("Transfer")
 .WithOpenApi();
 
 
